@@ -26,7 +26,7 @@ func (s *Store) Create(ws *models.Workspace) error {
 	defer s.mu.Unlock()
 
 	for _, existing := range s.workspaces {
-		if existing.UserID == ws.UserID && existing.Name == ws.Name {
+		if existing.UserID == ws.UserID && existing.Name == ws.Name && existing.Status != models.StatusDeleted{
 			return ErrAlreadyExists
 		}
 	}
