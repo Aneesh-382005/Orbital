@@ -1,20 +1,13 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"github.com/Aneesh-382005/Orbital/internal/api"
+	"github.com/Aneesh-382005/Orbital/internal/store"
 )
 
 func main() {
-	r := gin.Default()
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "Orbital",
-		})
-	})
-
+	s := store.New()
+	h := api.NewHandler(s)
+	r := api.NewRouter(h)
 	r.Run(":8080")
 }
