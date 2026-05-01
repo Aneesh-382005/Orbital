@@ -1,21 +1,24 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/Aneesh-382005/Orbital/internal/models"
 	"github.com/Aneesh-382005/Orbital/internal/store"
+	"github.com/Aneesh-382005/Orbital/internal/provisioner"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
 	store *store.Store
+	provisioner *provisioner.DockerProvisioner
 }
 
-func NewHandler(s *store.Store) *Handler {
-	return &Handler{store: s}
+func NewHandler(s *store.Store, p *provisioner.DockerProvisioner) *Handler {
+	return &Handler{store: s, provisioner: p}
 }
 
 func (h *Handler) CreateWorkspace(c *gin.Context) {
@@ -47,7 +50,18 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, ws)
+	if err := h.provisioner.StartWorkspace(c.Request.Context(), ws); err != nil {
+		ws.Status = models.StatusPending
+		h.store.Update(ws)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to start workspace" + err.Error()})
+		return
+	}
+
+	h.store.Update(ws)
+	c.JSON(http.StatusCreated, gin.H{
+		"workspace": ws,
+		"url": fmt.Sprintf("http://localhost:%d", ws.Port),
+	})
 }
 
 func (h *Handler) GetWorkspace(c *gin.Context) {
@@ -79,6 +93,13 @@ func (h *Handler) StopWorkspace(c *gin.Context) {
 		return
 	}
 
+	if ws.ContainerID != "" {
+		if err := h.provisioner.StopWorkspace(c.Request.Context(), ws.ContainerID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	ws.Status = models.StatusStopped
 	ws.UpdatedAt = time.Now()
 	h.store.Update(ws)
@@ -91,6 +112,13 @@ func (h *Handler) DeleteWorkspace(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
 		return
+	}
+
+	if ws.ContainerID != "" {
+		if err := h.provisioner.RemoveWorkspace(c.Request.Context(), ws.ContainerID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	ws.Status = models.StatusDeleted
