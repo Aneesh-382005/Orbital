@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Aneesh-382005/Orbital/internal/models"
+	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -24,48 +24,30 @@ const (
 
 type DockerProvisioner struct {
 	client *client.Client
+	store  *store.Store
 }
 
-func NewDockerProvisioner() (*DockerProvisioner, error) {
+func NewDockerProvisioner(s *store.Store) (*DockerProvisioner, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("failed to docker client: %w", err)
+		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
-	return &DockerProvisioner{client: cli}, nil
+	return &DockerProvisioner{client: cli, store: s}, nil
 }
 
 func (p *DockerProvisioner) findFreePort(ctx context.Context) (int, error) {
-	used := map[int]bool{}
-
-	f := filters.NewArgs()
-	f.Add("label",
-		"orbital.managed=true")
-
-	containers, err := p.client.ContainerList(ctx, container.ListOptions{
-		All:     true,
-		Filters: f,
-	})
-
+	used, err := p.store.UsedPorts()
 	if err != nil {
-		return 0, fmt.Errorf("listing containers: %w", err)
+		return 0, err
 	}
-
-	for _, c := range containers {
-		for _, p := range c.Ports {
-			if p.PublicPort != 0 {
-				used[int(p.PublicPort)] = true
-			}
-		}
-	}
-
 	for port := basePort; port < maxPort; port++ {
 		if !used[port] {
 			return port, nil
 		}
 	}
-
-	return 0, fmt.Errorf("no free ports available in range %d-%d", basePort, maxPort)
+	return 0, fmt.Errorf("no free ports in range %d-%d", basePort, maxPort)
 }
+
 func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Workspace) error {
 	// Pull image if not present
 	reader, err := p.client.ImagePull(ctx, codeServerImage, image.PullOptions{})
@@ -78,6 +60,11 @@ func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Works
 	port, err := p.findFreePort(ctx)
 	if err != nil {
 		return err
+	}
+
+	// Registering port before starting container
+	if err := p.store.AllocatePort(ws.ID, port); err != nil {
+		return fmt.Errorf("allocating port: %w", err)
 	}
 
 	containerPort := nat.Port("8080/tcp")
@@ -137,11 +124,14 @@ func (p *DockerProvisioner) StopWorkspace(ctx context.Context, containerID strin
 	return nil
 }
 
-func (p *DockerProvisioner) RemoveWorkspace(ctx context.Context, containerID string) error {
-	if err := p.client.ContainerRemove(ctx, containerID, container.RemoveOptions{
-		Force: true,
-	}); err != nil {
-		return fmt.Errorf("removing container: %w", err)
+func (p *DockerProvisioner) RemoveWorkspace(ctx context.Context, ws *models.Workspace) error {
+	if ws.ContainerID != "" {
+		if err := p.client.ContainerRemove(ctx, ws.ContainerID, container.RemoveOptions{Force: true}); err != nil {
+			return fmt.Errorf("removing container: %w", err)
+		}
+	}
+	if ws.Port != 0 {
+		p.store.FreePort(ws.Port)
 	}
 	return nil
 }

@@ -5,19 +5,20 @@ import "time"
 type WorkspaceStatus string
 
 const (
-	StatusPending  WorkspaceStatus = "PENDING"
-	StatusRunning  WorkspaceStatus = "RUNNING"
+	StatusPending WorkspaceStatus = "PENDING"
+	StatusRunning WorkspaceStatus = "RUNNING"
 	StatusStopped WorkspaceStatus = "STOPPED"
-	StatusDeleted  WorkspaceStatus = "DELETED"
+	StatusDeleted WorkspaceStatus = "DELETED"
+	StatusError WorkspaceStatus = "ERROR"
 )
 
 type Workspace struct {
-	ID			string			`json:"id"`
-	UserID		string			`json:"user_id"`
-	Name		string			`json:"name"`
-	Status		WorkspaceStatus `json:"status"`
-	ContainerID string			`json:"container_id,omitempty"`
-	Port		int				`json:"port,omitempty"`
-	CreatedAt	time.Time		`json:"created_at"`
-	UpdatedAt	time.Time		`json:"updated_at"`
+	ID          string          `json:"id" db:"id"`
+	UserID      string          `json:"user_id" db:"user_id"`
+	Name        string          `json:"name" db:"name"`
+	Status      WorkspaceStatus `json:"status" db:"status"`
+	ContainerID string          `json:"container_id,omitempty" db:"container_id"`
+	Port        int             `json:"port,omitempty" db:"port"`
+	CreatedAt   time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at" db:"updated_at"`
 }

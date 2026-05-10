@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/Aneesh-382005/Orbital/internal/models"
-	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/Aneesh-382005/Orbital/internal/provisioner"
+	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	store *store.Store
+	store       *store.Store
 	provisioner *provisioner.DockerProvisioner
 }
 
@@ -51,7 +51,7 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 	}
 
 	if err := h.provisioner.StartWorkspace(c.Request.Context(), ws); err != nil {
-		ws.Status = models.StatusPending
+		ws.Status = models.StatusError
 		h.store.Update(ws)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to start workspace" + err.Error()})
 		return
@@ -60,7 +60,7 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 	h.store.Update(ws)
 	c.JSON(http.StatusCreated, gin.H{
 		"workspace": ws,
-		"url": fmt.Sprintf("http://localhost:%d", ws.Port),
+		"url":       fmt.Sprintf("http://localhost:%d", ws.Port),
 	})
 }
 
@@ -81,7 +81,11 @@ func (h *Handler) ListWorkspaces(c *gin.Context) {
 		return
 	}
 
-	workspaces := h.store.List(userID)
+	workspaces, err := h.store.List(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, workspaces)
 }
 
@@ -90,6 +94,11 @@ func (h *Handler) StopWorkspace(c *gin.Context) {
 	ws, err := h.store.Get(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
+	if ws.Status == models.StatusStopped || ws.Status == models.StatusDeleted {
+		c.JSON(http.StatusConflict, gin.H{"error": "workspace is not running"})
 		return
 	}
 
@@ -115,7 +124,7 @@ func (h *Handler) DeleteWorkspace(c *gin.Context) {
 	}
 
 	if ws.ContainerID != "" {
-		if err := h.provisioner.RemoveWorkspace(c.Request.Context(), ws.ContainerID); err != nil {
+		if err := h.provisioner.RemoveWorkspace(c.Request.Context(), ws); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
