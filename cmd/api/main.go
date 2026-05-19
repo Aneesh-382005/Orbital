@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/Aneesh-382005/Orbital/internal/api"
+	"github.com/Aneesh-382005/Orbital/internal/auth"
 	"github.com/Aneesh-382005/Orbital/internal/db"
 	"github.com/Aneesh-382005/Orbital/internal/provisioner"
 	"github.com/Aneesh-382005/Orbital/internal/store"
@@ -23,7 +24,12 @@ func main() {
 		log.Fatalf("failed to create provisioner: %v", err)
 	}
 
-	h := api.NewHandler(s, p)
-	r := api.NewRouter(h)
+	j, err := auth.NewJWTService("secrets/private.pem", "secrets/public.pem")
+	if err != nil {
+		log.Fatalf("failed to load JWT keys: %v", err)
+	}
+
+	h := api.NewHandler(s, p, j)
+	r := api.NewRouter(h, j)
 	r.Run(":8080")
 }
