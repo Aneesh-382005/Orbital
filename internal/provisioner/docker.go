@@ -10,6 +10,7 @@ import (
 	"github.com/Aneesh-382005/Orbital/internal/models"
 	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -25,6 +26,11 @@ const (
 type DockerProvisioner struct {
 	client *client.Client
 	store  *store.Store
+}
+
+type ContainerSummary struct {
+	ID		string
+	Labels	map[string]string
 }
 
 func NewDockerProvisioner(s *store.Store) (*DockerProvisioner, error) {
@@ -134,4 +140,30 @@ func (p *DockerProvisioner) RemoveWorkspace(ctx context.Context, ws *models.Work
 		p.store.FreePort(ws.Port)
 	}
 	return nil
+}
+
+func (p *DockerProvisioner) ListWorkspaceContainers(ctx context.Context) ([]ContainerSummary, error) {
+	f := filters.NewArgs()
+	f.Add("label", "orbital.managed=true")
+	
+	containers, err := p.client.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: f,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing containers: %w", err)
+	}
+
+	result := []ContainerSummary{}
+	for _, c := range containers {
+		result = append(result, ContainerSummary{
+			ID:     c.ID,
+			Labels: c.Labels,
+		})
+	}
+	return result, nil
+}
+
+func (p *DockerProvisioner) RemoveContainer(ctx context.Context, containerID string) error {
+	return p.client.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: true})
 }
