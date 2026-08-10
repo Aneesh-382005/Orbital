@@ -19,6 +19,7 @@ type Workspace struct {
 	Status      WorkspaceStatus `json:"status" db:"status"`
 	ContainerID string          `json:"container_id,omitempty" db:"container_id"`
 	Port        int             `json:"port,omitempty" db:"port"`
+	Password    string          `json:"-" db:"password"`
 	CreatedAt   time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at" db:"updated_at"`
 }

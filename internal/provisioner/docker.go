@@ -2,6 +2,8 @@ package provisioner
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -41,6 +43,14 @@ func NewDockerProvisioner(s *store.Store) (*DockerProvisioner, error) {
 	return &DockerProvisioner{client: cli, store: s}, nil
 }
 
+func generatePassword() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating password: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
 func (p *DockerProvisioner) findFreePort(ctx context.Context) (int, error) {
 	used, err := p.store.UsedPorts()
 	if err != nil {
@@ -73,6 +83,11 @@ func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Works
 		return fmt.Errorf("allocating port: %w", err)
 	}
 
+	password, err := generatePassword()
+	if err != nil {
+		return err
+	}
+
 	containerPort := nat.Port("8080/tcp")
 	hostPort := fmt.Sprintf("%d", port)
 
@@ -80,7 +95,7 @@ func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Works
 		&container.Config{
 			Image: codeServerImage,
 			Env: []string{
-				"PASSWORD=orbital-secret",
+				fmt.Sprintf("PASSWORD=%s", password),
 				fmt.Sprintf("WORKSPACE_ID=%s", ws.ID),
 			},
 			Labels: map[string]string{
@@ -116,6 +131,7 @@ func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Works
 
 	ws.ContainerID = resp.ID
 	ws.Port = port
+	ws.Password = password
 	ws.Status = models.StatusRunning
 	ws.UpdatedAt = time.Now()
 

@@ -35,6 +35,13 @@ func AuthMiddleware(jwtService *auth.JWTService) gin.HandlerFunc {
 }
 
 func GetUserID(c *gin.Context) string {
-	userID, _ := c.Get(userIDKey)
-	return userID.(string)
+	userID, ok := c.Get(userIDKey)
+	if !ok {
+		return ""
+	}
+	s, ok := userID.(string)
+	if !ok {
+		return ""
+	}
+	return s
 }

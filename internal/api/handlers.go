@@ -62,6 +62,7 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"workspace": ws,
 		"url":       fmt.Sprintf("http://localhost:%d", ws.Port),
+		"password":  ws.Password,
 	})
 }
 

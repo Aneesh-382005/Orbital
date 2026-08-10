@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
 	status 			TEXT NOT NULL,
 	container_id 	TEXT NOT NULL DEFAULT '',
 	port INTEGER 	NOT NULL DEFAULT 0,
+	password 		TEXT NOT NULL DEFAULT '',
 	created_at 		DATETIME NOT NULL,
 	updated_at 		DATETIME NOT NULL
 );

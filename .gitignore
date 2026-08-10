@@ -3,4 +3,4 @@ orbital
 *.db
 *.db-shm
 *.db-wal
-secrets/
+secrets/TOKEN

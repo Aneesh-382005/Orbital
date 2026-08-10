@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -22,8 +23,8 @@ func New(db *sqlx.DB) *Store {
 
 func (s *Store) Create(ws *models.Workspace) error {
 	_, err := s.db.NamedExec(`
-		INSERT INTO workspaces (id, user_id, name, status, container_id, port, created_at, updated_at)
-		VALUES (:id, :user_id, :name, :status, :container_id, :port, :created_at, :updated_at)
+		INSERT INTO workspaces (id, user_id, name, status, container_id, port, password, created_at, updated_at)
+		VALUES (:id, :user_id, :name, :status, :container_id, :port, :password, :created_at, :updated_at)
 	`, ws)
 	if err != nil {
 		if isUniqueConstraint(err) {
@@ -58,8 +59,8 @@ func (s *Store) List(userID string) ([]*models.Workspace, error) {
 func (s *Store) Update(ws *models.Workspace) error {
 	ws.UpdatedAt = time.Now()
 	_, err := s.db.NamedExec(`
-		UPDATE workspaces 
-		SET status=:status, container_id=:container_id, port=:port, updated_at=:updated_at
+		UPDATE workspaces
+		SET status=:status, container_id=:container_id, port=:port, password=:password, updated_at=:updated_at
 		WHERE id=:id
 	`, ws)
 	return err
@@ -102,19 +103,5 @@ func (s *Store) UsedPorts() (map[int]bool, error) {
 }
 
 func isUniqueConstraint(err error) bool {
-	return err != nil && (err.Error() == "UNIQUE constraint failed: workspaces.user_id, workspaces.name" ||
-		contains(err.Error(), "UNIQUE constraint failed"))
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
