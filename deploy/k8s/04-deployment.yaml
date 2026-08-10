@@ -1,0 +1,89 @@
+# replicas is pinned to 1, not 2, despite the general convention of running APIs with
+# multiple replicas. Orbital's store (internal/store/store.go) is SQLite-on-disk with
+# a single WAL file on this Deployment's PVC. SQLite does not support multiple
+# concurrent writer processes safely — a second replica would race the first on writes
+# to orbital.db and on Docker container reconciliation (internal/reconciler), producing
+# SQLITE_BUSY errors and duplicate/orphaned container churn. Do not scale this past 1
+# without first moving to a networked database (Postgres/MySQL) and adding leader
+# election for the reconciler loop.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbital
+  namespace: orbital
+  labels:
+    app: orbital
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbital
+  template:
+    metadata:
+      labels:
+        app: orbital
+    spec:
+      containers:
+        - name: orbital
+          image: orbital:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: orbital-config
+          workingDir: /app/run
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          # There's no Dockerfile in this repo yet. main.go hardcodes
+          # db.New("orbital.db") and NewJWTService("secrets/private.pem",
+          # "secrets/public.pem") — both relative to the process's working
+          # directory. workingDir below is set to /app/run, a directory that holds
+          # nothing but the mounted PVC and the mounted secret, so those two
+          # relative paths resolve onto persistent/secret storage without touching
+          # Go code. When you write the Dockerfile, put the binary anywhere EXCEPT
+          # /app/run (e.g. /usr/local/bin/orbital) so this mount can't shadow it.
+          volumeMounts:
+            - name: db-data
+              mountPath: /app/run
+            - name: jwt-keys
+              mountPath: /app/run/secrets
+              readOnly: true
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: orbital-db
+        - name: jwt-keys
+          secret:
+            secretName: orbital-jwt-keys
+        - name: docker-sock
+          # Mounts the Kind node's Docker socket into the pod so the provisioner
+          # (internal/provisioner/docker.go, client.FromEnv) can reach the Docker
+          # daemon. This grants the pod root-equivalent access to the host — a
+          # reasonable shortcut for local Kind development only, never for a real
+          # cluster. containerd-in-Kind means this is the *node's* dockerd, if
+          # present; on stock Kind images without Docker installed on the node,
+          # this path won't exist and the provisioner will fail to connect.
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket

@@ -17,7 +17,26 @@ import (
 )
 
 func main() {
-	database, err := db.New("orbital.db")
+	dbPath := os.Getenv("ORBITAL_DB_PATH")
+	if dbPath == "" {
+		dbPath = "orbital.db"
+	}
+
+	listenAddr := os.Getenv("ORBITAL_LISTEN_ADDR")
+	if listenAddr == "" {
+		listenAddr = ":8080"
+	}
+
+	reconcileInterval := 30 * time.Second
+	if v := os.Getenv("ORBITAL_RECONCILE_INTERVAL"); v != "" {
+		parsed, err := time.ParseDuration(v)
+		if err != nil {
+			log.Fatalf("invalid ORBITAL_RECONCILE_INTERVAL: %v", err)
+		}
+		reconcileInterval = parsed
+	}
+
+	database, err := db.New(dbPath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -38,7 +57,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rec := reconciler.New(s, p, 30*time.Second)
+	rec := reconciler.New(s, p, reconcileInterval)
 	go rec.Start(ctx)
 
 	h := api.NewHandler(s, p, j)
@@ -53,5 +72,5 @@ func main() {
 		cancel()
 	}()
 
-	r.Run(":8080")
+	r.Run(listenAddr)
 }

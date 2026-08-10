@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: orbital-db
+  namespace: orbital
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # Kind's default StorageClass ("standard", rancher local-path-provisioner) is fine
+  # for local use; omit storageClassName to use whatever is default in your Kind cluster.

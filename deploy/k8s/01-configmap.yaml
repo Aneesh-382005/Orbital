@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orbital-config
+  namespace: orbital
+data:
+  # main.go does not yet read these as env vars — it hardcodes "orbital.db" and
+  # "secrets/{private,public}.pem" relative to the working directory, and ":8080"
+  # in r.Run(). These keys are provided for when that wiring is added; until then
+  # they're informational only and have no effect on the running process.
+  ORBITAL_DB_PATH: "orbital.db"
+  ORBITAL_LISTEN_ADDR: ":8080"
+  ORBITAL_RECONCILE_INTERVAL: "30s"

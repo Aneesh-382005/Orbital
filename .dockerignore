@@ -1,0 +1,7 @@
+secrets/
+orbital.db
+orbital.db-wal
+orbital.db-shm
+TOKEN
+.git/
+*.env
