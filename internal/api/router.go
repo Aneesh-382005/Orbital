@@ -9,10 +9,13 @@ import (
 
 func NewRouter(h *Handler, jwtService *auth.JWTService) *gin.Engine {
 	r := gin.Default()
+	r.Use(MetricsMiddleware())
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "orbital"})
 	})
+
+	r.GET("/metrics", h.Metrics)
 
 	r.POST("/auth/token", h.IssueToken)
 

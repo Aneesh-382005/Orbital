@@ -2,11 +2,26 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/Aneesh-382005/Orbital/internal/auth"
+	"github.com/Aneesh-382005/Orbital/internal/metrics"
 )
+
+func MetricsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+
+		status := strconv.Itoa(c.Writer.Status())
+		labels := []string{c.Request.Method, c.FullPath(), status}
+		metrics.HTTPRequestsTotal.WithLabelValues(labels...).Inc()
+		metrics.HTTPRequestDuration.WithLabelValues(labels...).Observe(time.Since(start).Seconds())
+	}
+}
 
 const userIDKey = "userID"
 

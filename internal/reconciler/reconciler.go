@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Aneesh-382005/Orbital/internal/metrics"
 	"github.com/Aneesh-382005/Orbital/internal/models"
 	"github.com/Aneesh-382005/Orbital/internal/provisioner"
 	"github.com/Aneesh-382005/Orbital/internal/store"
@@ -32,12 +33,20 @@ func (r *Reconciler) Start(ctx context.Context) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
 
+	lastRun := time.Now()
+	lagTicker := time.NewTicker(time.Second)
+	defer lagTicker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
 			if err := r.reconcile(ctx); err != nil {
 				r.logger.Error("reconcilation failed", "error", err)
+			} else {
+				lastRun = time.Now()
 			}
+		case <-lagTicker.C:
+			metrics.ReconciliationLag.Set(time.Since(lastRun).Seconds())
 		case <-ctx.Done():
 			r.logger.Info("reconciler stopped")
 			return

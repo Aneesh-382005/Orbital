@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/Aneesh-382005/Orbital/internal/auth"
+	"github.com/Aneesh-382005/Orbital/internal/metrics"
 	"github.com/Aneesh-382005/Orbital/internal/models"
 	"github.com/Aneesh-382005/Orbital/internal/provisioner"
 	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Handler struct {
@@ -144,6 +146,19 @@ func (h *Handler) DeleteWorkspace(c *gin.Context) {
 	ws.UpdatedAt = time.Now()
 	h.store.Update(ws)
 	c.JSON(http.StatusOK, gin.H{"message": "workspace deleted"})
+}
+
+func (h *Handler) Metrics(c *gin.Context) {
+	counts, err := h.store.CountByStatus()
+	if err == nil {
+		for _, status := range []models.WorkspaceStatus{
+			models.StatusPending, models.StatusRunning, models.StatusStopped,
+			models.StatusDeleted, models.StatusError,
+		} {
+			metrics.WorkspaceCount.WithLabelValues(string(status)).Set(float64(counts[string(status)]))
+		}
+	}
+	promhttp.Handler().ServeHTTP(c.Writer, c.Request)
 }
 
 func (h *Handler) IssueToken(c *gin.Context) {

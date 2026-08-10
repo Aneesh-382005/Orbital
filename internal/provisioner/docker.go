@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Aneesh-382005/Orbital/internal/metrics"
 	"github.com/Aneesh-382005/Orbital/internal/models"
 	"github.com/Aneesh-382005/Orbital/internal/store"
 	"github.com/docker/docker/api/types/container"
@@ -65,6 +66,9 @@ func (p *DockerProvisioner) findFreePort(ctx context.Context) (int, error) {
 }
 
 func (p *DockerProvisioner) StartWorkspace(ctx context.Context, ws *models.Workspace) error {
+	start := time.Now()
+	defer func() { metrics.WorkspaceProvisioningDuration.Observe(time.Since(start).Seconds()) }()
+
 	// Pull image if not present
 	reader, err := p.client.ImagePull(ctx, codeServerImage, image.PullOptions{})
 	if err != nil {

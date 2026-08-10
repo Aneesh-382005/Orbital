@@ -66,6 +66,25 @@ func (s *Store) Update(ws *models.Workspace) error {
 	return err
 }
 
+func (s *Store) CountByStatus() (map[string]int, error) {
+	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM workspaces GROUP BY status`)
+	if err != nil {
+		return nil, fmt.Errorf("counting workspaces by status: %w", err)
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scanning workspace count: %w", err)
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
 func (s *Store) ListRunning() ([]*models.Workspace, error) {
 	var workspaces []*models.Workspace
 	err := s.db.Select(&workspaces, `
